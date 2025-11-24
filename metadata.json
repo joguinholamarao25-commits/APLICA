@@ -1,0 +1,7 @@
+{
+  "name": "CleanPro Manager",
+  "description": "Aplicativo de gestão para profissionais de higienização de estofados. Gere orçamentos com IA, agende serviços e envie via WhatsApp.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
