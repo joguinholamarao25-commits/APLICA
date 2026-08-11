@@ -1,8 +1,8 @@
 name: Build POCO X8 Pro Aperture 60FPS
 
 'on':
-  push:
-    branches: [poco-x8-aperture-60fps]
+  pull_request:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
