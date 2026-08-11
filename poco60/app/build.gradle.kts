@@ -9,9 +9,9 @@ android {
     defaultConfig {
         applicationId = "com.marlon.poco60"
         minSdk = 28
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0-vendor803c"
+        targetSdk = 34
+        versionCode = 2
+        versionName = "1.1-vendor803c-navbarfix"
     }
 
     compileOptions {
