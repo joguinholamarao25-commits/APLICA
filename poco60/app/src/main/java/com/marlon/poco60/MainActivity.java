@@ -49,8 +49,6 @@ public class MainActivity extends Activity {
     private static final String LOGICAL_ID = "0";
     private static final String PHYSICAL_ID = "2";
 
-    // This is the only MediaTek vendor key enabled in this build.
-    // No 0x803C operating mode, no recordState, no initrequest and no forced AE 60/60.
     private static final CaptureRequest.Key<Integer> MTK_HFPS =
             new CaptureRequest.Key<>("com.mediatek.streamingfeature.hfpsMode", Integer.class);
 
@@ -405,9 +403,9 @@ public class MainActivity extends Activity {
                     String source = "logical";
 
                     try {
-                        Map<String, TotalCaptureResult> physicalResults =
+                        Map<String, CaptureResult> physicalResults =
                                 result.getPhysicalCameraResults();
-                        TotalCaptureResult physical2 = physicalResults.get(PHYSICAL_ID);
+                        CaptureResult physical2 = physicalResults.get(PHYSICAL_ID);
                         if (physical2 != null) {
                             ts = physical2.get(CaptureResult.SENSOR_TIMESTAMP);
                             source = "physical2";
