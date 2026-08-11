@@ -1,0 +1,1 @@
+Build trigger for raw Camera2 vendor 60 FPS test.
