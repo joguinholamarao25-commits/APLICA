@@ -14,6 +14,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Patch AE 60/60 test
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('poco60/app/src/main/java/com/marlon/poco60/MainActivity.java')
+          s = p.read_text()
+          s = s.replace('import android.view.Surface;', 'import android.util.Range;\nimport android.view.Surface;')
+          s = s.replace(
+              'safeSet(repeating, MTK_HFPS, 1, "hfpsMode repeating");',
+              'safeSet(repeating, MTK_HFPS, 1, "hfpsMode repeating");\n        safeSet(repeating, CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(60, 60), "AE 60/60 repeating");'
+          )
+          s = s.replace(
+              'safeSet(sessionParams, MTK_HFPS, 1, "hfpsMode session");',
+              'safeSet(sessionParams, MTK_HFPS, 1, "hfpsMode session");\n        safeSet(sessionParams, CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(60, 60), "AE 60/60 session");'
+          )
+          s = s.replace('TESTAR LÓGICA 0 / HFPS', 'TESTAR HFPS + AE60')
+          s = s.replace('apenas hfpsMode=1…', 'hfpsMode=1 + AE 60/60…')
+          s = s.replace('hfpsMode=1 | medindo FPS…', 'hfpsMode=1 | AE=60/60 | medindo FPS…')
+          s = s.replace('câmera0 | NORMAL | hfps=1', 'câmera0 | NORMAL | hfps=1 | AE60')
+          p.write_text(s)
+          PY
+
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -41,7 +63,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: POCO-X8-Pro-Raw-Camera2-60FPS
+          name: POCO-X8-Pro-Logical0-HFPS-AE60
           path: poco60/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
