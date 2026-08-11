@@ -7,11 +7,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.marlon.poco60"
+        applicationId = "com.marlon.poco60.physical2"
         minSdk = 28
         targetSdk = 34
         versionCode = 2
-        versionName = "1.1-vendor803c-navbarfix"
+        versionName = "2.0-physical2-hfps-only"
     }
 
     compileOptions {
