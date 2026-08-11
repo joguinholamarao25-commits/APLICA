@@ -1,70 +1,57 @@
 name: Build POCO X8 Pro Aperture 60FPS
 
-on:
-  workflow_dispatch:
+'on':
   push:
-    branches:
-      - poco-x8-aperture-60fps
-    paths:
-      - .github/workflows/poco-x8-aperture-60fps.yml
+    branches: [poco-x8-aperture-60fps]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout helper repo
-        uses: actions/checkout@v4
-
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Clone Aperture with MediaTek HFPS patch
-        run: |
-          git clone --depth 1 --branch 17 https://github.com/halcyonproject/packages_apps_Aperture.git aperture
+      - name: Clone Aperture branch 17
+        run: git clone --depth 1 --branch 17 https://github.com/halcyonproject/packages_apps_Aperture.git aperture
 
-      - name: Force 60 FPS options for POCO X8 Pro camera IDs 0, 2 and 4
+      - name: Add POCO X8 Pro 60 FPS modes
+        shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('aperture/app/src/main/res/values/config.xml')
+          p = Path("aperture/app/src/main/res/values/config.xml")
           s = p.read_text()
-          old = '''    <string-array name="config_additionalVideoConfigurations">
-        <!-- No additional configuration is added by default. -->
-    </string-array>'''
-          new = '''    <string-array name="config_additionalVideoConfigurations">
-        <!-- POCO X8 Pro / klee: MediaTek HAL exposes 1080p60 and 2160p60 through HFPS. -->
-        <item>0</item> <item>fhd|uhd</item> <item>60</item>
-        <item>2</item> <item>fhd|uhd</item> <item>60</item>
-        <item>4</item> <item>fhd|uhd</item> <item>60</item>
-    </string-array>'''
-          if old not in s:
-              raise SystemExit('config_additionalVideoConfigurations block not found')
-          p.write_text(s.replace(old, new))
+          marker = '    <string-array name="config_additionalVideoConfigurations">\n        <!-- No additional configuration is added by default. -->\n    </string-array>'
+          replacement = '    <string-array name="config_additionalVideoConfigurations">\n        <item>0</item> <item>fhd|uhd</item> <item>60</item>\n        <item>2</item> <item>fhd|uhd</item> <item>60</item>\n        <item>4</item> <item>fhd|uhd</item> <item>60</item>\n    </string-array>'
+          if marker not in s:
+              raise SystemExit("additional video configuration block not found")
+          p.write_text(s.replace(marker, replacement))
           PY
 
-      - name: Verify MediaTek HFPS patch exists
+      - name: Verify MediaTek HFPS support and forced modes
         run: |
           grep -R "com.mediatek.streamingfeature.hfpsMode" -n aperture/app/src/main/java
-          grep -n "<item>2</item> <item>fhd|uhd</item> <item>60</item>" aperture/app/src/main/res/values/config.xml
+          grep -n "fhd|uhd" aperture/app/src/main/res/values/config.xml
 
-      - name: Build debug APK
+      - name: Build APK
         working-directory: aperture
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
 
-      - name: Show APK SHA-256
-        run: |
-          sha256sum aperture/app/build/outputs/apk/debug/app-debug.apk
+      - name: SHA256
+        run: sha256sum aperture/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Aperture-POCO-X8-Pro-60FPS.apk
+          name: Aperture-POCO-X8-Pro-60FPS
           path: aperture/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
           retention-days: 30
