@@ -8,7 +8,6 @@ import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
@@ -37,8 +36,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 
 public class MainActivity extends Activity {
@@ -46,8 +43,7 @@ public class MainActivity extends Activity {
     private static final int WIDTH = 1920;
     private static final int HEIGHT = 1080;
     private static final int ENCODER_FPS = 60;
-    private static final String LOGICAL_ID = "0";
-    private static final String PHYSICAL_ID = "2";
+    private static final String CAMERA_ID = "0";
 
     private static final CaptureRequest.Key<Integer> MTK_HFPS =
             new CaptureRequest.Key<>("com.mediatek.streamingfeature.hfpsMode", Integer.class);
@@ -68,7 +64,6 @@ public class MainActivity extends Activity {
     private Uri outputUri;
     private File legacyOutputFile;
     private boolean recording = false;
-    private boolean physical2Available = false;
 
     private long lastSensorTimestamp = 0L;
     private long sensorDeltaSum = 0L;
@@ -85,13 +80,12 @@ public class MainActivity extends Activity {
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
                 ensureCameraPermissionAndOpen();
             }
-
             @Override public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {}
             @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) { return true; }
             @Override public void onSurfaceTextureUpdated(SurfaceTexture surface) {}
         });
 
-        startButton.setOnClickListener(v -> startPhysical2Recording());
+        startButton.setOnClickListener(v -> startLogicalHfpsRecording());
         stopButton.setOnClickListener(v -> stopRecording());
     }
 
@@ -118,7 +112,7 @@ public class MainActivity extends Activity {
         controls.setPadding(16, 16, 16, 24);
 
         startButton = new Button(this);
-        startButton.setText("TESTAR FÍSICA 2 / 60");
+        startButton.setText("TESTAR LÓGICA 0 / HFPS");
         startButton.setEnabled(false);
         controls.addView(startButton, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -134,7 +128,7 @@ public class MainActivity extends Activity {
     }
 
     private void startCameraThread() {
-        cameraThread = new HandlerThread("POCO60Physical2");
+        cameraThread = new HandlerThread("POCO60LogicalHfps");
         cameraThread.start();
         cameraHandler = new Handler(cameraThread.getLooper());
         cameraExecutor = command -> cameraHandler.post(command);
@@ -145,7 +139,7 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
             return;
         }
-        openLogicalCamera0();
+        openCamera0();
     }
 
     @Override
@@ -153,57 +147,41 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_CAMERA && grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            openLogicalCamera0();
+            openCamera0();
         }
     }
 
-    private void openLogicalCamera0() {
+    private void openCamera0() {
         CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
         try {
             List<String> ids = Arrays.asList(manager.getCameraIdList());
-            if (!ids.contains(LOGICAL_ID)) {
-                setStatus("Camera lógica ID 0 não encontrada. IDs: " + ids);
+            if (!ids.contains(CAMERA_ID)) {
+                setStatus("Camera ID 0 não encontrada. IDs: " + ids);
                 return;
             }
-
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(LOGICAL_ID);
-            Set<String> physicalIds = characteristics.getPhysicalCameraIds();
-            physical2Available = physicalIds.contains(PHYSICAL_ID);
-            setStatus("Abrindo lógica 0 | físicas: " + physicalIds);
-
-            if (!physical2Available) {
-                setStatus("A câmera lógica 0 não expõe a física 2. Físicas: " + physicalIds);
-                return;
-            }
-
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return;
 
-            manager.openCamera(LOGICAL_ID, new CameraDevice.StateCallback() {
-                @Override
-                public void onOpened(CameraDevice camera) {
+            manager.openCamera(CAMERA_ID, new CameraDevice.StateCallback() {
+                @Override public void onOpened(CameraDevice camera) {
                     cameraDevice = camera;
-                    createLogicalPreview();
+                    createPreview();
                 }
-
-                @Override
-                public void onDisconnected(CameraDevice camera) {
+                @Override public void onDisconnected(CameraDevice camera) {
                     camera.close();
                     cameraDevice = null;
                     setButtons(false, false);
                     setStatus("Câmera desconectada");
                 }
-
-                @Override
-                public void onError(CameraDevice camera, int error) {
+                @Override public void onError(CameraDevice camera, int error) {
                     camera.close();
                     cameraDevice = null;
                     recording = false;
                     setButtons(false, false);
-                    setStatus("Erro CameraDevice: " + error + " | feche e abra o app para novo teste");
+                    setStatus("Erro CameraDevice: " + error + " | feche e abra o app");
                 }
             }, cameraHandler);
         } catch (Exception e) {
-            setStatus("Falha ao abrir lógica 0: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            setStatus("Falha ao abrir câmera 0: " + e.getClass().getSimpleName() + " - " + e.getMessage());
         }
     }
 
@@ -223,7 +201,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void createLogicalPreview() {
+    private void createPreview() {
         if (cameraDevice == null || !textureView.isAvailable()) return;
         closeSession();
         try {
@@ -233,23 +211,20 @@ public class MainActivity extends Activity {
 
             cameraDevice.createCaptureSession(Arrays.asList(preview),
                     new CameraCaptureSession.StateCallback() {
-                        @Override
-                        public void onConfigured(CameraCaptureSession s) {
+                        @Override public void onConfigured(CameraCaptureSession s) {
                             if (cameraDevice == null) return;
                             session = s;
                             try {
                                 s.setRepeatingRequest(builder.build(), null, cameraHandler);
                                 setButtons(true, false);
-                                setStatus("PRONTO | lógica 0 | física 2 disponível | sessão normal");
+                                setStatus("PRONTO | câmera lógica 0 | sessão normal | sem física 2");
                             } catch (CameraAccessException e) {
                                 setStatus("Erro no preview: " + e.getMessage());
                             }
                         }
-
-                        @Override
-                        public void onConfigureFailed(CameraCaptureSession s) {
+                        @Override public void onConfigureFailed(CameraCaptureSession s) {
                             setButtons(false, false);
-                            setStatus("Falha ao configurar preview lógico");
+                            setStatus("Falha ao configurar preview");
                         }
                     }, cameraHandler);
         } catch (Exception e) {
@@ -258,40 +233,35 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void startPhysical2Recording() {
-        if (recording || cameraDevice == null || !physical2Available || !textureView.isAvailable()) return;
+    private void startLogicalHfpsRecording() {
+        if (recording || cameraDevice == null || !textureView.isAvailable()) return;
         setButtons(false, false);
-        setStatus("Preparando: lógica 0 → física 2 | sessão NORMAL | somente hfpsMode=1…");
+        setStatus("Preparando câmera 0 | sessão NORMAL | apenas hfpsMode=1…");
 
         cameraHandler.post(() -> {
             try {
                 closeSession();
                 prepareRecorder();
-                createPhysical2NormalSession();
+                createLogicalHfpsSession();
             } catch (Exception e) {
-                setStatus("Falha ao iniciar teste: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+                setStatus("Falha ao iniciar: " + e.getClass().getSimpleName() + " - " + e.getMessage());
                 discardRecorderOutput();
-                if (cameraDevice != null) createLogicalPreview();
+                if (cameraDevice != null) createPreview();
             }
         });
     }
 
     private void prepareRecorder() throws IOException {
         discardRecorderOutput();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            mediaRecorder = new MediaRecorder(this);
-        } else {
-            mediaRecorder = new MediaRecorder();
-        }
-
+        mediaRecorder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                ? new MediaRecorder(this) : new MediaRecorder();
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContentValues values = new ContentValues();
             values.put(MediaStore.Video.Media.DISPLAY_NAME,
-                    "POCO60_PHYS2_" + System.currentTimeMillis() + ".mp4");
+                    "POCO60_LOGICAL0_" + System.currentTimeMillis() + ".mp4");
             values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
             values.put(MediaStore.Video.Media.RELATIVE_PATH,
                     Environment.DIRECTORY_MOVIES + "/POCO60Test");
@@ -306,7 +276,7 @@ public class MainActivity extends Activity {
             File dir = new File(getExternalFilesDir(Environment.DIRECTORY_MOVIES), "POCO60Test");
             if (!dir.exists() && !dir.mkdirs()) throw new IOException("Falha ao criar pasta");
             legacyOutputFile = new File(dir,
-                    "POCO60_PHYS2_" + System.currentTimeMillis() + ".mp4");
+                    "POCO60_LOGICAL0_" + System.currentTimeMillis() + ".mp4");
             mediaRecorder.setOutputFile(legacyOutputFile.getAbsolutePath());
         }
 
@@ -318,18 +288,13 @@ public class MainActivity extends Activity {
         mediaRecorder.prepare();
     }
 
-    private void createPhysical2NormalSession() throws CameraAccessException {
+    private void createLogicalHfpsSession() throws CameraAccessException {
         Surface preview = previewSurface();
         Surface record = mediaRecorder.getSurface();
 
-        OutputConfiguration previewOutput = new OutputConfiguration(preview);
-        OutputConfiguration recordOutput = new OutputConfiguration(record);
-        previewOutput.setPhysicalCameraId(PHYSICAL_ID);
-        recordOutput.setPhysicalCameraId(PHYSICAL_ID);
-
         List<OutputConfiguration> outputs = new ArrayList<>();
-        outputs.add(previewOutput);
-        outputs.add(recordOutput);
+        outputs.add(new OutputConfiguration(preview));
+        outputs.add(new OutputConfiguration(record));
 
         CaptureRequest.Builder repeating =
                 cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
@@ -350,8 +315,7 @@ public class MainActivity extends Activity {
                 outputs,
                 cameraExecutor,
                 new CameraCaptureSession.StateCallback() {
-                    @Override
-                    public void onConfigured(CameraCaptureSession s) {
+                    @Override public void onConfigured(CameraCaptureSession s) {
                         if (cameraDevice == null) return;
                         session = s;
                         resetFpsCounter();
@@ -360,20 +324,19 @@ public class MainActivity extends Activity {
                             mediaRecorder.start();
                             recording = true;
                             setButtons(false, true);
-                            setStatus("GRAVANDO | lógica 0 → física 2 | NORMAL | hfpsMode=1 | medindo…");
+                            setStatus("GRAVANDO | câmera 0 | NORMAL | hfpsMode=1 | medindo FPS…");
                         } catch (Exception e) {
                             setStatus("Sessão abriu, mas gravação falhou: "
                                     + e.getClass().getSimpleName() + " - " + e.getMessage());
                             discardRecorderOutput();
-                            if (cameraDevice != null) createLogicalPreview();
+                            if (cameraDevice != null) createPreview();
                         }
                     }
 
-                    @Override
-                    public void onConfigureFailed(CameraCaptureSession s) {
-                        setStatus("HAL recusou sessão NORMAL com outputs na física 2 + hfpsMode=1");
+                    @Override public void onConfigureFailed(CameraCaptureSession s) {
+                        setStatus("HAL recusou sessão NORMAL da câmera 0 + hfpsMode=1");
                         discardRecorderOutput();
-                        if (cameraDevice != null) createLogicalPreview();
+                        if (cameraDevice != null) createPreview();
                     }
                 });
 
@@ -399,22 +362,8 @@ public class MainActivity extends Activity {
                 public void onCaptureCompleted(CameraCaptureSession s,
                                                CaptureRequest request,
                                                TotalCaptureResult result) {
-                    Long ts = null;
-                    String source = "logical";
-
-                    try {
-                        Map<String, CaptureResult> physicalResults =
-                                result.getPhysicalCameraResults();
-                        CaptureResult physical2 = physicalResults.get(PHYSICAL_ID);
-                        if (physical2 != null) {
-                            ts = physical2.get(CaptureResult.SENSOR_TIMESTAMP);
-                            source = "physical2";
-                        }
-                    } catch (Exception ignored) {}
-
-                    if (ts == null) ts = result.get(CaptureResult.SENSOR_TIMESTAMP);
+                    Long ts = result.get(CaptureResult.SENSOR_TIMESTAMP);
                     if (ts == null) return;
-
                     if (lastSensorTimestamp != 0L) {
                         long delta = ts - lastSensorTimestamp;
                         if (delta > 0 && delta < 200_000_000L) {
@@ -422,10 +371,9 @@ public class MainActivity extends Activity {
                             sensorDeltaCount++;
                             if (sensorDeltaCount >= 30) {
                                 double fps = 1_000_000_000.0 * sensorDeltaCount / sensorDeltaSum;
-                                String finalSource = source;
                                 setStatus(String.format(Locale.US,
-                                        "GRAVANDO | FPS SENSOR: %.1f | %s | lógica0→física2 | NORMAL | hfps=1",
-                                        fps, finalSource));
+                                        "GRAVANDO | FPS SENSOR: %.1f | câmera0 | NORMAL | hfps=1",
+                                        fps));
                                 sensorDeltaSum = 0L;
                                 sensorDeltaCount = 0;
                             }
@@ -448,19 +396,16 @@ public class MainActivity extends Activity {
                 if (session != null) {
                     try { session.stopRepeating(); } catch (Exception ignored) {}
                 }
-                try {
-                    mediaRecorder.stop();
-                } catch (RuntimeException e) {
-                    setStatus("MediaRecorder stop falhou: " + e.getMessage());
-                }
+                try { mediaRecorder.stop(); }
+                catch (RuntimeException e) { setStatus("MediaRecorder stop falhou: " + e.getMessage()); }
             } finally {
                 recording = false;
                 closeSession();
                 finalizeRecorderOutput();
                 setButtons(false, false);
                 if (cameraDevice != null) {
-                    setStatus("Vídeo salvo. Reabrindo preview lógico…");
-                    createLogicalPreview();
+                    setStatus("Vídeo salvo. Reabrindo preview…");
+                    createPreview();
                 }
             }
         });
