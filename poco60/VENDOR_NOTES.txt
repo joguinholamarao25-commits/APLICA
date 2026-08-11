@@ -1,0 +1,1 @@
+The vendor operating mode 0x803C (32828) is derived from Xiaomi camera code for normal 60 FPS video on MediaTek. The app also applies com.mediatek.streamingfeature.hfpsMode=1 as a session parameter and repeating request.
